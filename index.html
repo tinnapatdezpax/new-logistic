@@ -1,105 +1,32 @@
 <!DOCTYPE html>
-<html lang="th">
-<head>
-  <meta charset="UTF-8">
-  <title>อัปโหลดออเดอร์รายวัน</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <style>
-    #drop-area {
-      border: 2px dashed #ccc;
-      padding: 30px;
-      text-align: center;
-      font-size: 16px;
-      color: #666;
-      margin-bottom: 20px;
-      cursor: pointer;
-    }
-    #drop-area.hover {
-      border-color: #007bff;
-      background-color: #f0f8ff;
-    }
-  </style>
-</head>
-<body>
-  <h2>อัปโหลดไฟล์ออเดอร์ (.xlsx / .csv)</h2>
-
-  <div id="drop-area">ลากไฟล์มาวางที่นี่ หรือคลิกเพื่อเลือกไฟล์</div>
-  <input type="file" id="fileElem" accept=".xlsx,.xls,.csv" style="display:none;">
-  <p id="status"></p>
-
-  <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbybP2DzwsPUW6jHpszBLzFM3xRbWvl856aLe8yR2HSf2i19eDsYKUvA8fSw_tB1CiKK/exec";
-
-    const dropArea = document.getElementById("drop-area");
-    const fileInput = document.getElementById("fileElem");
-
-    dropArea.addEventListener("click", () => fileInput.click());
-    dropArea.addEventListener("dragover", e => {
-      e.preventDefault();
-      dropArea.classList.add("hover");
-    });
-    dropArea.addEventListener("dragleave", () => {
-      dropArea.classList.remove("hover");
-    });
-    dropArea.addEventListener("drop", e => {
-      e.preventDefault();
-      dropArea.classList.remove("hover");
-      handleFile(e.dataTransfer.files[0]);
-    });
-    fileInput.addEventListener("change", () => {
-      handleFile(fileInput.files[0]);
-    });
-
-    function handleFile(file) {
-      if (!file) return;
-
-      const reader = new FileReader();
-      const isCSV = file.name.endsWith(".csv");
-
-      reader.onload = function(e) {
-        const data = e.target.result;
-
-        let jsonData;
-
-        if (isCSV) {
-          // แปลง CSV ด้วย Split
-          const lines = data.split(/\r?\n/).filter(line => line.trim() !== "");
-          const headers = lines[0].split(",");
-          jsonData = lines.slice(1).map(line => {
-            const values = line.split(",");
-            const row = {};
-            headers.forEach((header, i) => row[header.trim()] = values[i]?.trim());
-            return row;
-          });
-        } else {
-          // แปลง XLSX ด้วย SheetJS
-          const workbook = XLSX.read(data, { type: "binary" });
-          const firstSheet = workbook.SheetNames[0];
-          const sheet = workbook.Sheets[firstSheet];
-          jsonData = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-        }
-
-        // ส่งข้อมูลไป Google Apps Script
-        fetch(WEB_APP_URL, {
-          method: "POST",
-          body: JSON.stringify(jsonData),
-          headers: { "Content-Type": "application/json" }
-        })
-        .then(res => res.text())
-        .then(text => document.getElementById("status").textContent = "✅ อัปโหลดสำเร็จ")
-        .catch(err => {
-          console.error(err);
-          document.getElementById("status").textContent = "❌ เกิดข้อผิดพลาดในการส่งข้อมูล";
-        });
-      };
-
-      if (isCSV) {
+<html>
+  <head>
+    <base target="_top">
+  </head>
+  <body>
+    <h1>อัปโหลดไฟล์ CSV</h1>
+    <form id="uploadForm">
+      <input type="file" name="file" />
+      <input type="button" value="อัปโหลด" onclick="uploadCSVFile()" />
+    </form>
+    <div id="status"></div>
+    <script>
+      function uploadCSVFile() {
+        const file = document.querySelector('input[type="file"]').files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          const content = e.target.result;
+          google.script.run
+            .withSuccessHandler(function(result) {
+              document.getElementById('status').innerText = 'อัปโหลดสำเร็จ! กำลังประมวลผล...';
+            })
+            .withFailureHandler(function(error) {
+              document.getElementById('status').innerText = 'เกิดข้อผิดพลาด: ' + error.message;
+            })
+            .uploadCSV(content);
+        };
         reader.readAsText(file);
-      } else {
-        reader.readAsBinaryString(file);
       }
-    }
-  </script>
-</body>
+    </script>
+  </body>
 </html>
-
