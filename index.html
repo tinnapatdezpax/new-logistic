@@ -1,78 +1,84 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Upload Excel</title>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <title>Upload XLSX</title>
   <style>
-    #drop-zone {
-      border: 2px dashed #888;
-      padding: 40px;
-      text-align: center;
-      font-size: 18px;
-      color: #444;
-      margin: 20px;
+    body { font-family: sans-serif; padding: 20px; }
+    .drop-area {
+      border: 2px dashed #888; padding: 40px; text-align: center;
+      color: #666; border-radius: 10px; margin-top: 20px;
     }
-    #drop-zone.hover {
-      background-color: #f0f0f0;
+    .drop-area.dragover {
+      background: #f0f8ff;
+      border-color: #00f;
     }
   </style>
 </head>
 <body>
+  <h2>📦 อัปโหลดออเดอร์รายวัน (.xlsx)</h2>
+  <p>ลากไฟล์ .xlsx มาวางด้านล่าง หรือคลิกเพื่อเลือก</p>
 
-  <h2>ลากไฟล์ Excel (.xlsx) มาวางด้านล่าง</h2>
-  <div id="drop-zone">Drag & Drop Excel (.xlsx) Here</div>
+  <div class="drop-area" id="drop-area">Drop or Click to Upload .xlsx</div>
   <p id="status"></p>
 
   <script>
-    const dropZone = document.getElementById("drop-zone");
-    const status = document.getElementById("status");
+    const dropArea = document.getElementById("drop-area");
+    const statusText = document.getElementById("status");
 
-    // รองรับการลากและวาง
-    dropZone.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      dropZone.classList.add("hover");
+    const scriptURL = "https://script.google.com/macros/s/AKfycbxAc-fM2I33OY5BFLwR4CshM6ZYVzJUKDwtFCcVUZM_5SsZ714UKFM0kOzEDI9ID9Nr/exec"; // <== แก้ตรงนี้
+
+    dropArea.addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".xlsx";
+      input.onchange = () => uploadFile(input.files[0]);
+      input.click();
     });
 
-    dropZone.addEventListener("dragleave", () => {
-      dropZone.classList.remove("hover");
+    dropArea.addEventListener("dragover", e => {
+      e.preventDefault();
+      dropArea.classList.add("dragover");
     });
 
-    dropZone.addEventListener("drop", async (e) => {
-      e.preventDefault();
-      dropZone.classList.remove("hover");
+    dropArea.addEventListener("dragleave", () => {
+      dropArea.classList.remove("dragover");
+    });
 
+    dropArea.addEventListener("drop", e => {
+      e.preventDefault();
+      dropArea.classList.remove("dragover");
       const file = e.dataTransfer.files[0];
-      if (!file.name.endsWith(".xlsx")) {
-        status.innerText = "❌ กรุณาอัปโหลดไฟล์ .xlsx เท่านั้น";
-        return;
+      if (file && file.name.endsWith(".xlsx")) {
+        uploadFile(file);
+      } else {
+        statusText.innerText = "❌ ต้องเป็นไฟล์ .xlsx เท่านั้น";
       }
-
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: "array" });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-      // ส่งข้อมูลไปยัง Google Apps Script Web App
-      fetch("https://script.google.com/macros/s/AKfycbz9JM4OtPYofGIYEK4bjxxuGTMuaGty2tgX1YCK2BFCdxrWf2gmbL9ijMtzrsEtd1M/exec", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: jsonData })
-      })
-      .then(res => res.json())
-      .then(result => {
-        if (result.status === "success") {
-          status.innerText = "✅ อัปโหลดและบันทึกข้อมูลเรียบร้อยแล้ว";
-        } else {
-          status.innerText = "❌ เกิดข้อผิดพลาด: " + result.message;
-        }
-      })
-      .catch(err => {
-        status.innerText = "❌ ส่งข้อมูลไม่สำเร็จ: " + err.message;
-      });
     });
-  </script>
 
+    function uploadFile(file) {
+      statusText.innerText = "📤 กำลังอัปโหลด...";
+      const reader = new FileReader();
+      reader.onload = () => {
+        fetch(scriptURL, {
+          method: "POST",
+          body: JSON.stringify({ file: reader.result }),
+          headers: { "Content-Type": "application/json" }
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.status === "success") {
+            statusText.innerText = `✅ อัปโหลดสำเร็จ (${data.rows} แถว)`;
+          } else {
+            statusText.innerText = `❌ ผิดพลาด: ${data.message}`;
+          }
+        })
+        .catch(err => {
+          statusText.innerText = `❌ Error: ${err}`;
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  </script>
 </body>
 </html>
