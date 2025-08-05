@@ -1,32 +1,78 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <base target="_top">
-  </head>
-  <body>
-    <h1>อัปโหลดไฟล์ CSV</h1>
-    <form id="uploadForm">
-      <input type="file" name="file" />
-      <input type="button" value="อัปโหลด" onclick="uploadCSVFile()" />
-    </form>
-    <div id="status"></div>
-    <script>
-      function uploadCSVFile() {
-        const file = document.querySelector('input[type="file"]').files[0];
-        const reader = new FileReader();
-        reader.onload = function(e) {
-          const content = e.target.result;
-          google.script.run
-            .withSuccessHandler(function(result) {
-              document.getElementById('status').innerText = 'อัปโหลดสำเร็จ! กำลังประมวลผล...';
-            })
-            .withFailureHandler(function(error) {
-              document.getElementById('status').innerText = 'เกิดข้อผิดพลาด: ' + error.message;
-            })
-            .uploadCSV(content);
-        };
-        reader.readAsText(file);
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>Upload Excel</title>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    #drop-zone {
+      border: 2px dashed #888;
+      padding: 40px;
+      text-align: center;
+      font-size: 18px;
+      color: #444;
+      margin: 20px;
+    }
+    #drop-zone.hover {
+      background-color: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>ลากไฟล์ Excel (.xlsx) มาวางด้านล่าง</h2>
+  <div id="drop-zone">Drag & Drop Excel (.xlsx) Here</div>
+  <p id="status"></p>
+
+  <script>
+    const dropZone = document.getElementById("drop-zone");
+    const status = document.getElementById("status");
+
+    // รองรับการลากและวาง
+    dropZone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      dropZone.classList.add("hover");
+    });
+
+    dropZone.addEventListener("dragleave", () => {
+      dropZone.classList.remove("hover");
+    });
+
+    dropZone.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      dropZone.classList.remove("hover");
+
+      const file = e.dataTransfer.files[0];
+      if (!file.name.endsWith(".xlsx")) {
+        status.innerText = "❌ กรุณาอัปโหลดไฟล์ .xlsx เท่านั้น";
+        return;
       }
-    </script>
-  </body>
+
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+      // ส่งข้อมูลไปยัง Google Apps Script Web App
+      fetch("https://script.google.com/macros/s/AKfycbz9JM4OtPYofGIYEK4bjxxuGTMuaGty2tgX1YCK2BFCdxrWf2gmbL9ijMtzrsEtd1M/exec", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: jsonData })
+      })
+      .then(res => res.json())
+      .then(result => {
+        if (result.status === "success") {
+          status.innerText = "✅ อัปโหลดและบันทึกข้อมูลเรียบร้อยแล้ว";
+        } else {
+          status.innerText = "❌ เกิดข้อผิดพลาด: " + result.message;
+        }
+      })
+      .catch(err => {
+        status.innerText = "❌ ส่งข้อมูลไม่สำเร็จ: " + err.message;
+      });
+    });
+  </script>
+
+</body>
 </html>
